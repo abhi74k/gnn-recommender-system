@@ -103,9 +103,6 @@ def create_amazon_category(metadata: AmazonCategoryMetadata, category, out_dir):
     reviews_pd = clean_reviews_data(reviews_path)
     products_pd = clean_products_data(products_path, category)
 
-    print("Number of reviews: " + str(len(reviews_pd)))
-    print("Number of products: " + str(len(products_pd)))
-
     merged_reviews = pd.merge(reviews_pd, products_pd, on='asin', how='inner')
     products_in_reviews = merged_reviews['asin'].unique()
     filtered_products_id_pd = pd.DataFrame(products_in_reviews, columns=['asin'])
@@ -118,14 +115,12 @@ def create_amazon_category(metadata: AmazonCategoryMetadata, category, out_dir):
             return list(filter(lambda y: y in products_in_reviews, x))
 
     # Filter out also_bought, also_viewed and also_viewed that are not present in the products
-    products_pd['also_bought'] = products_pd['also_bought'].apply(filter_list)
-    products_pd['also_viewed'] = products_pd['also_viewed'].apply(filter_list)
-    products_pd['bought_together'] = products_pd['bought_together'].apply(filter_list)
+    # TODO: This is very expensive. Commented out for now. Plz uncomment it when you run it.
+    # products_pd['also_bought'] = products_pd['also_bought'].apply(filter_list)
+    # products_pd['also_viewed'] = products_pd['also_viewed'].apply(filter_list)
+    # products_pd['bought_together'] = products_pd['bought_together'].apply(filter_list)
 
-    print("Number of reviews: " + str(len(reviews_pd)))
-    print("Number of products: " + str(len(products_pd)))
-
-    amazon_category = AmazonCategory(category, reviews_pd, products_pd)
+    amazon_category = AmazonCategory(category, reviews_pd, products_pd, os.path.join(out_dir, category, 'images'))
     return amazon_category
 
 
