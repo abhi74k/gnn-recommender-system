@@ -85,40 +85,90 @@ def clean_products_data(reviews_path, category):
     return data_pd
 
 
+def create_product_filter(products):
+    def filter_list(x):
+        if isinstance(x, float) and math.isnan(x):
+            return None
+        else:
+            return list(filter(lambda y: y in products, x))
+
+    return filter_list
+
+
+def create_all_products_csv(metadata: AmazonCategoryMetadata, category, out_dir):
+    category_path = os.path.join(out_dir, category)
+    all_products_csv_path = os.path.join(category_path, "all_products.csv")
+
+    if os.path.exists(all_products_csv_path):
+        return pd.read_csv(all_products_csv_path)
+
+    category_data = metadata.get_category_data(category)
+
+    product_url = category_data['product_url']
+    products_path = download_url(product_url, category_path, 'products.json.gz')
+    products_pd = clean_products_data(products_path, category)
+
+    print("Filtering also_bought, also_viewed and also_viewed that are not present in the products")
+    product_filter = create_product_filter(products_pd['asin'].unique())
+    products_pd['also_bought'] = products_pd['also_bought'].apply(product_filter)
+    products_pd['also_viewed'] = products_pd['also_viewed'].apply(product_filter)
+    products_pd['bought_together'] = products_pd['bought_together'].apply(product_filter)
+    print("Done!")
+
+    print("Generating all_products.csv")
+    products_pd.to_csv(all_products_csv_path, index=False)
+
+    return products_pd
+
+
 def create_amazon_category(metadata: AmazonCategoryMetadata, category, out_dir):
     """
      Downloads the dataset from the internet and stores it in out_dir.
      Create a category object with the reviews and products data.
     """
 
-    category_data = metadata.get_category_data(category)
-    review_url = category_data['review_url']
-    product_url = category_data['product_url']
-
     category_path = os.path.join(out_dir, category)
+    products_csv_path = os.path.join(category_path, "products.csv")
+    users_csv_path = os.path.join(category_path, "users.csv")
 
-    reviews_path = download_url(review_url, category_path, 'reviews.json.gz')
-    products_path = download_url(product_url, category_path, 'products.json.gz')
+    category_data = metadata.get_category_data(category)
 
-    reviews_pd = clean_reviews_data(reviews_path)
-    products_pd = clean_products_data(products_path, category)
+    if os.path.exists(users_csv_path):
+        reviews_pd = pd.read_csv(users_csv_path)
+    else:
+        review_url = category_data['review_url']
+        reviews_path = download_url(review_url, category_path, 'reviews.json.gz')
+        reviews_pd = clean_reviews_data(reviews_path)
+        print("Generating reviews.csv")
+        reviews_pd.to_csv(users_csv_path, index=False)
 
-    merged_reviews = pd.merge(reviews_pd, products_pd, on='asin', how='inner')
-    products_in_reviews = merged_reviews['asin'].unique()
-    filtered_products_id_pd = pd.DataFrame(products_in_reviews, columns=['asin'])
-    products_pd = pd.merge(filtered_products_id_pd, products_pd, on='asin', how='inner')
+    if os.path.exists(products_csv_path):
+        products_pd = pd.read_csv(products_csv_path)
+    else:
+        product_url = category_data['product_url']
+        products_path = download_url(product_url, category_path, 'products.json.gz')
+        products_pd = clean_products_data(products_path, category)
 
-    def filter_list(x):
-        if isinstance(x, float) and math.isnan(x):
-            return None
-        else:
-            return list(filter(lambda y: y in products_in_reviews, x))
+        # Filter out products that are not present in the reviews
+        merged_reviews = pd.merge(reviews_pd, products_pd, on='asin', how='inner')
 
-    # Filter out also_bought, also_viewed and also_viewed that are not present in the products
-    # TODO: This is very expensive. Commented out for now. Plz uncomment it when you run it.
-    # products_pd['also_bought'] = products_pd['also_bought'].apply(filter_list)
-    # products_pd['also_viewed'] = products_pd['also_viewed'].apply(filter_list)
-    # products_pd['bought_together'] = products_pd['bought_together'].apply(filter_list)
+        # Products for which there are corresponding reviews
+        products_in_reviews = merged_reviews['asin'].unique()
+        products_in_reviews_pd = pd.DataFrame(products_in_reviews, columns=['asin'])
+
+        # Filter out products that are not present in the reviews
+        products_pd = pd.merge(products_in_reviews_pd, products_pd, on='asin', how='inner')
+
+        # Filter out also_bought, also_viewed and also_viewed that are not present in the products
+        print("Filtering also_bought, also_viewed and also_viewed that are not present in the products")
+        product_filter = create_product_filter(products_pd['asin'].unique())
+        products_pd['also_bought'] = products_pd['also_bought'].apply(product_filter)
+        products_pd['also_viewed'] = products_pd['also_viewed'].apply(product_filter)
+        products_pd['bought_together'] = products_pd['bought_together'].apply(product_filter)
+        print("Done!")
+
+        print("Generating products.csv")
+        products_pd.to_csv(products_csv_path, index=False)
 
     amazon_category = AmazonCategory(category, reviews_pd, products_pd, os.path.join(out_dir, category, 'images'))
     return amazon_category
