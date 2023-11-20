@@ -105,7 +105,12 @@ def create_all_products_csv(metadata: AmazonCategoryMetadata, category, out_dir)
     category_data = metadata.get_category_data(category)
 
     product_url = category_data['product_url']
-    products_path = download_url(product_url, category_path, 'products.json.gz')
+    products_filename = 'products.json.gz'
+    products_path = os.path.join(out_dir, products_filename)
+
+    if os.path.exists(products_path) is False:
+        products_path = download_url(product_url, out_dir, products_filename)
+
     products_pd = clean_products_data(products_path, category)
 
     print("Filtering also_bought, also_viewed and also_viewed that are not present in the products")
