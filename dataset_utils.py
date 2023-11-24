@@ -7,6 +7,10 @@ import json
 import gzip
 import pandas as pd
 import math
+from pandarallel import pandarallel
+import ast
+
+pandarallel.initialize(progress_bar=True, nb_workers=28)
 
 
 def download_url(url, out_dir, filename):
@@ -86,11 +90,11 @@ def clean_products_data(reviews_path, category):
 
 
 def create_product_filter(products):
-    def filter_list(x):
-        if isinstance(x, float) and math.isnan(x):
+    def filter_list(values):
+        if isinstance(values, float) and math.isnan(values):
             return None
         else:
-            return list(filter(lambda y: y in products, x))
+            return [value for value in values if value in products]
 
     return filter_list
 
@@ -114,10 +118,10 @@ def create_all_products_csv(metadata: AmazonCategoryMetadata, category, out_dir)
     products_pd = clean_products_data(products_path, category)
 
     print("Filtering also_bought, also_viewed and also_viewed that are not present in the products")
-    product_filter = create_product_filter(products_pd['asin'].unique())
-    products_pd['also_bought'] = products_pd['also_bought'].apply(product_filter)
-    products_pd['also_viewed'] = products_pd['also_viewed'].apply(product_filter)
-    products_pd['bought_together'] = products_pd['bought_together'].apply(product_filter)
+    product_filter = create_product_filter(list(products_pd['asin'].unique()))
+    products_pd['also_bought'] = products_pd['also_bought'].parallel_apply(product_filter)
+    products_pd['also_viewed'] = products_pd['also_viewed'].parallel_apply(product_filter)
+    products_pd['bought_together'] = products_pd['bought_together'].parallel_apply(product_filter)
     print("Done!")
 
     print("Generating all_products.csv")
@@ -149,6 +153,13 @@ def create_amazon_category(metadata: AmazonCategoryMetadata, category, out_dir):
 
     if os.path.exists(products_csv_path):
         products_pd = pd.read_csv(products_csv_path)
+
+        # Convert string to list
+        products_pd['also_viewed'] = products_pd['also_viewed'].parallel_apply(lambda x: ast.literal_eval(x) if pd.notna(x) else x)
+        products_pd['categories'] = products_pd['categories'].parallel_apply(lambda x: ast.literal_eval(x) if pd.notna(x) else x)
+        products_pd['also_bought'] = products_pd['also_bought'].parallel_apply(lambda x: ast.literal_eval(x) if pd.notna(x) else x)
+        products_pd['bought_together'] = products_pd['bought_together'].parallel_apply(lambda x: ast.literal_eval(x) if pd.notna(x) else x)
+
     else:
         product_url = category_data['product_url']
         products_path = download_url(product_url, category_path, 'products.json.gz')
@@ -166,10 +177,10 @@ def create_amazon_category(metadata: AmazonCategoryMetadata, category, out_dir):
 
         # Filter out also_bought, also_viewed and also_viewed that are not present in the products
         print("Filtering also_bought, also_viewed and also_viewed that are not present in the products")
-        product_filter = create_product_filter(products_pd['asin'].unique())
-        products_pd['also_bought'] = products_pd['also_bought'].apply(product_filter)
-        products_pd['also_viewed'] = products_pd['also_viewed'].apply(product_filter)
-        products_pd['bought_together'] = products_pd['bought_together'].apply(product_filter)
+        product_filter = create_product_filter(list(products_pd['asin'].unique()))
+        products_pd['also_bought'] = products_pd['also_bought'].parallel_apply(product_filter)
+        products_pd['also_viewed'] = products_pd['also_viewed'].parallel_apply(product_filter)
+        products_pd['bought_together'] = products_pd['bought_together'].parallel_apply(product_filter)
         print("Done!")
 
         print("Generating products.csv")
@@ -180,6 +191,16 @@ def create_amazon_category(metadata: AmazonCategoryMetadata, category, out_dir):
 
 
 if __name__ == '__main__':
-    amazon_category = create_amazon_category(create_amazon_category_metadata(),
-                                             'garden',
-                                             r"C:\Users\josep\Downloads\amazon_dataset")
+    # amazon_category = create_amazon_category(create_amazon_category_metadata(),
+    #                                          'garden',
+    #                                          r"C:\Users\josep\Downloads\amazon_dataset")
+
+    metadata = create_amazon_category_metadata()
+    category = 'clothing_shoes_jewellery'
+    path_to_download = r"/home/abhinav/amazon_dataset"
+
+    amazon_category = create_amazon_category(metadata,
+                                             category,
+                                             path_to_download)
+
+    # create_all_products_csv(metadata, category, path_to_download)
