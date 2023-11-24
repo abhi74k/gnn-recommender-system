@@ -104,7 +104,14 @@ def create_all_products_csv(metadata: AmazonCategoryMetadata, category, out_dir)
     all_products_csv_path = os.path.join(category_path, "all_products.csv")
 
     if os.path.exists(all_products_csv_path):
-        return pd.read_csv(all_products_csv_path)
+        print("Reading all_products.csv")
+        all_products_pd =  pd.read_csv(all_products_csv_path)
+        all_products_pd['also_viewed'] = all_products_pd['also_viewed'].parallel_apply(lambda x: ast.literal_eval(x) if pd.notna(x) else x)
+        all_products_pd['categories'] = all_products_pd['categories'].parallel_apply(lambda x: ast.literal_eval(x) if pd.notna(x) else x)
+        all_products_pd['also_bought'] = all_products_pd['also_bought'].parallel_apply(lambda x: ast.literal_eval(x) if pd.notna(x) else x)
+        all_products_pd['bought_together'] = all_products_pd['bought_together'].parallel_apply(lambda x: ast.literal_eval(x) if pd.notna(x) else x)
+
+        return all_products_pd
 
     category_data = metadata.get_category_data(category)
 
@@ -143,6 +150,7 @@ def create_amazon_category(metadata: AmazonCategoryMetadata, category, out_dir):
     category_data = metadata.get_category_data(category)
 
     if os.path.exists(users_csv_path):
+        print("Reading users.csv")
         reviews_pd = pd.read_csv(users_csv_path)
     else:
         review_url = category_data['review_url']
@@ -152,13 +160,18 @@ def create_amazon_category(metadata: AmazonCategoryMetadata, category, out_dir):
         reviews_pd.to_csv(users_csv_path, index=False)
 
     if os.path.exists(products_csv_path):
+        print("Reading products.csv")
         products_pd = pd.read_csv(products_csv_path)
 
         # Convert string to list
-        products_pd['also_viewed'] = products_pd['also_viewed'].parallel_apply(lambda x: ast.literal_eval(x) if pd.notna(x) else x)
-        products_pd['categories'] = products_pd['categories'].parallel_apply(lambda x: ast.literal_eval(x) if pd.notna(x) else x)
-        products_pd['also_bought'] = products_pd['also_bought'].parallel_apply(lambda x: ast.literal_eval(x) if pd.notna(x) else x)
-        products_pd['bought_together'] = products_pd['bought_together'].parallel_apply(lambda x: ast.literal_eval(x) if pd.notna(x) else x)
+        products_pd['also_viewed'] = products_pd['also_viewed'].parallel_apply(
+            lambda x: ast.literal_eval(x) if pd.notna(x) else x)
+        products_pd['categories'] = products_pd['categories'].parallel_apply(
+            lambda x: ast.literal_eval(x) if pd.notna(x) else x)
+        products_pd['also_bought'] = products_pd['also_bought'].parallel_apply(
+            lambda x: ast.literal_eval(x) if pd.notna(x) else x)
+        products_pd['bought_together'] = products_pd['bought_together'].parallel_apply(
+            lambda x: ast.literal_eval(x) if pd.notna(x) else x)
 
     else:
         product_url = category_data['product_url']
