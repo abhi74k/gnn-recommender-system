@@ -217,3 +217,5 @@ if __name__ == '__main__':
                                              path_to_download)
 
     # create_all_products_csv(metadata, category, path_to_download)
+
+    amazon_category.get_product('0641997078')
